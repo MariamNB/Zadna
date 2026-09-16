@@ -1,0 +1,1284 @@
+openapi: 3.1.0
+info:
+  title: Household Food Inventory API
+  version: 1.0.0
+  description: |
+    REST API for managing household food inventory.
+    All endpoints require authentication via JWT Bearer token.
+    The API automatically provisions a household for the user on first request.
+servers:
+  - url: http://localhost:8000/api/v1
+    description: Local development server
+  - url: https://api.example.com/api/v1
+    description: Production server
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Authentication
+    description: Token management, registration, password reset
+  - name: Households
+    description: Household info and membership
+  - name: Inventory
+    description: CRUD operations for inventory items
+  - name: Storage Locations
+    description: Hierarchical household storage configuration
+  - name: Reference Data
+    description: Global categories and units
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT access token (RS256)
+
+  schemas:
+    # --- Common ---
+    ErrorResponse:
+      type: object
+      required:
+        - detail
+        - code
+      properties:
+        detail:
+          type: string
+          description: Human-readable error message
+        code:
+          type: string
+          description: Machine-readable error code
+
+    ValidationErrorResponse:
+      type: object
+      required:
+        - detail
+        - code
+        - errors
+      properties:
+        detail:
+          type: string
+        code:
+          type: string
+        errors:
+          type: array
+          items:
+            type: object
+            required:
+              - field
+              - message
+              - code
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+              code:
+                type: string
+
+    PaginationEnvelope:
+      type: object
+      required:
+        - items
+        - next_page_token
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+        next_page_token:
+          type: string
+          description: Opaque cursor for next page; null when no more pages
+          nullable: true
+
+    LocalizedLabel:
+      type: object
+      required:
+        - key
+        - labels
+      properties:
+        key:
+          type: string
+          description: Stable machine-readable identifier
+          example: "meat_poultry"
+        labels:
+          type: object
+          required:
+            - ar
+            - en
+          properties:
+            ar:
+              type: string
+              description: Arabic display label
+              example: "اللحوم والدواجن"
+            en:
+              type: string
+              description: English display label
+              example: "Meat & Poultry"
+
+    # --- Reference Data ---
+    Category:
+      allOf:
+        - $ref: '#/components/schemas/LocalizedLabel'
+
+    Unit:
+      allOf:
+        - $ref: '#/components/schemas/LocalizedLabel'
+
+    ReferenceDataResponse:
+      type: object
+      required:
+        - categories
+        - units
+      properties:
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/Category'
+        units:
+          type: array
+          items:
+            $ref: '#/components/schemas/Unit'
+
+    # --- Storage Location ---
+    StorageLocationBase:
+      type: object
+      required:
+        - name
+        - type
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: "Drawer 2"
+        type:
+          type: string
+          enum:
+            - fridge
+            - freezer
+            - pantry
+            - garage_freezer
+            - drawer
+            - shelf
+            - section
+            - other
+          example: "drawer"
+        parent_id:
+          type:
+            - string
+            - "null"
+          format: uuid
+          description: Parent location ID (null for top-level)
+          nullable: true
+        sort_order:
+          type: integer
+          default: 0
+
+    StorageLocationCreate:
+      allOf:
+        - $ref: '#/components/schemas/StorageLocationBase'
+      description: Request body for creating a storage location
+
+    StorageLocationUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        type:
+          type: string
+          enum:
+            - fridge
+            - freezer
+            - pantry
+            - garage_freezer
+            - drawer
+            - shelf
+            - section
+            - other
+        parent_id:
+          type:
+            - string
+            - "null"
+          format: uuid
+          nullable: true
+        sort_order:
+          type: integer
+
+    StorageLocationResponse:
+      allOf:
+        - $ref: '#/components/schemas/StorageLocationBase'
+        - type: object
+          required:
+            - id
+            - household_id
+            - created_by
+            - updated_by
+            - created_at
+            - updated_at
+          properties:
+            id:
+              type: string
+              format: uuid
+            household_id:
+              type: string
+              format: uuid
+            created_by:
+              type: string
+              format: uuid
+            updated_by:
+              type: string
+              format: uuid
+            created_at:
+              type: string
+              format: date-time
+            updated_at:
+              type: string
+              format: date-time
+
+    StorageLocationListResponse:
+      allOf:
+        - $ref: '#/components/schemas/PaginationEnvelope'
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/StorageLocationResponse'
+
+    # --- Inventory Item ---
+    InventoryItemBase:
+      type: object
+      required:
+        - name
+        - category_key
+        - quantity
+        - unit_key
+        - storage_location_id
+      properties:
+        name:
+          type: string
+          description: Food name (free-form Unicode, Arabic/English/mixed)
+          minLength: 1
+          maxLength: 255
+          example: "فراخ متبلة"
+        category_key:
+          type: string
+          description: Category stable key
+          example: "meat_poultry"
+        quantity:
+          type: number
+          format: double
+          description: Quantity (decimal > 0)
+          minimum: 0.001
+          exclusiveMinimum: 0
+          example: 1.5
+        unit_key:
+          type: string
+          description: Unit stable key
+          example: "kilogram"
+        storage_location_id:
+          type: string
+          format: uuid
+          description: Storage location ID (household-owned)
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        prepared_at:
+          type:
+            - string
+            - "null"
+          format: date
+          description: When food was prepared/cooked
+          nullable: true
+        frozen_at:
+          type:
+            - string
+            - "null"
+          format: date
+          description: When food was frozen
+          nullable: true
+        opened_at:
+          type:
+            - string
+            - "null"
+          format: date
+          description: When package was opened
+          nullable: true
+        expires_at:
+          type:
+            - string
+            - "null"
+          format: date
+          description: Expiry date
+          nullable: true
+        is_homemade:
+          type: boolean
+          default: false
+          description: Homemade vs store-bought
+        status:
+          type: string
+          enum:
+            - stored
+            - thawing
+            - consumed
+            - discarded
+          default: "stored"
+        date_added:
+          type: string
+          format: date
+          description: Calendar date (defaults to today in household timezone)
+          example: "2026-09-13"
+        notes:
+          type: string
+          description: Optional notes (max 500 characters)
+          maxLength: 500
+          nullable: true
+          example: "متبلة للشوي"
+
+    InventoryItemCreate:
+      allOf:
+        - $ref: '#/components/schemas/InventoryItemBase'
+      description: Request body for creating an inventory item
+
+    InventoryItemUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        category_key:
+          type: string
+        quantity:
+          type: number
+          format: double
+          minimum: 0.001
+          exclusiveMinimum: 0
+        unit_key:
+          type: string
+        storage_location_id:
+          type: string
+          format: uuid
+        prepared_at:
+          type:
+            - string
+            - "null"
+          format: date
+          nullable: true
+        frozen_at:
+          type:
+            - string
+            - "null"
+          format: date
+          nullable: true
+        opened_at:
+          type:
+            - string
+            - "null"
+          format: date
+          nullable: true
+        expires_at:
+          type:
+            - string
+            - "null"
+          format: date
+          nullable: true
+        is_homemade:
+          type: boolean
+        status:
+          type: string
+          enum:
+            - stored
+            - thawing
+            - consumed
+            - discarded
+        date_added:
+          type: string
+          format: date
+        notes:
+          type: string
+          maxLength: 500
+          nullable: true
+      description: Request body for updating an inventory item (all fields optional)
+
+    InventoryItemResponse:
+      allOf:
+        - $ref: '#/components/schemas/InventoryItemBase'
+        - type: object
+          required:
+            - id
+            - household_id
+            - category
+            - unit
+            - storage_location
+            - date_added
+            - created_by
+            - updated_by
+            - created_at
+            - updated_at
+          properties:
+            id:
+              type: string
+              format: uuid
+              description: Item identifier
+              example: "550e8400-e29b-41d4-a716-446655440000"
+            household_id:
+              type: string
+              format: uuid
+            category:
+              $ref: '#/components/schemas/Category'
+            unit:
+              $ref: '#/components/schemas/Unit'
+            storage_location:
+              $ref: '#/components/schemas/StorageLocationResponse'
+            date_added:
+              type: string
+              format: date
+            created_by:
+              type: string
+              format: uuid
+            updated_by:
+              type: string
+              format: uuid
+            created_at:
+              type: string
+              format: date-time
+              description: Row creation timestamp (UTC)
+            updated_at:
+              type: string
+              format: date-time
+              description: Row last update timestamp (UTC)
+
+    InventoryItemListResponse:
+      allOf:
+        - $ref: '#/components/schemas/PaginationEnvelope'
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/InventoryItemResponse'
+
+    # --- Household ---
+    HouseholdResponse:
+      type: object
+      required:
+        - id
+        - name
+        - timezone
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: "Ahmed's Household"
+        timezone:
+          type: string
+          description: IANA timezone identifier
+          example: "UTC"
+        created_at:
+          type: string
+          format: date-time
+
+    HouseholdMemberResponse:
+      type: object
+      required:
+        - id
+        - household_id
+        - user_id
+        - role
+        - joined_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        household_id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        role:
+          type: string
+          enum:
+            - owner
+            - admin
+            - member
+        joined_at:
+          type: string
+          format: date-time
+
+    # --- Auth ---
+    RegisterRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          minLength: 8
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+
+    TokenRequest:
+      type: object
+      required:
+        - grant_type
+      properties:
+        grant_type:
+          type: string
+          enum:
+            - password
+            - refresh_token
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+        refresh_token:
+          type: string
+
+    TokenResponse:
+      type: object
+      required:
+        - access_token
+        - token_type
+        - expires_in
+      properties:
+        access_token:
+          type: string
+          description: JWT access token (RS256)
+        token_type:
+          type: string
+          enum:
+            - bearer
+        expires_in:
+          type: integer
+          description: Access token lifetime in seconds
+          example: 900
+        refresh_token:
+          type: string
+          description: Refresh token (opaque, rotation enabled)
+          nullable: true
+
+    RefreshRequest:
+      type: object
+      required:
+        - refresh_token
+      properties:
+        refresh_token:
+          type: string
+
+    PasswordResetRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+
+    PasswordResetConfirmRequest:
+      type: object
+      required:
+        - token
+        - password
+      properties:
+        token:
+          type: string
+        password:
+          type: string
+          format: password
+          minLength: 8
+
+paths:
+  /auth/register:
+    post:
+      summary: Register new user
+      description: |
+        Create a new user account. Automatically provisions a household
+        with the user as owner.
+      operationId: registerUser
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: User registered, tokens issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        '409':
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/login:
+    post:
+      summary: Login (password grant)
+      description: |
+        Exchange email/password for JWT access token and refresh token.
+      operationId: login
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Tokens issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/token:
+    post:
+      summary: Obtain access token (OAuth2 compatible)
+      description: |
+        Exchange credentials for JWT access token.
+        Uses OAuth2 password grant or refresh_token grant.
+      operationId: createToken
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenRequest'
+      responses:
+        '200':
+          description: Token issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400':
+          description: Invalid grant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/refresh:
+    post:
+      summary: Refresh access token
+      description: Exchange refresh token for new access token (rotation)
+      operationId: refreshToken
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: New token pair issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400':
+          description: Invalid grant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Invalid or revoked refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/password-reset:
+    post:
+      summary: Request password reset
+      description: >-
+        Send password reset email (stub: returns 501 in v1)
+      operationId: requestPasswordReset
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetRequest'
+      responses:
+        '202':
+          description: Reset email sent (or stub)
+        '501':
+          description: Not implemented in v1
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/password-reset/confirm:
+    post:
+      summary: Confirm password reset
+      description: >-
+        Reset password with token (stub: returns 501 in v1)
+      operationId: confirmPasswordReset
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetConfirmRequest'
+      responses:
+        '200':
+          description: Password reset
+        '501':
+          description: Not implemented in v1
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/logout:
+    post:
+      summary: Logout (revoke refresh token)
+      description: Revoke the current refresh token
+      operationId: logout
+      tags:
+        - Authentication
+      security:
+        - BearerAuth: []
+      responses:
+        '204':
+          description: Logged out
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /household:
+    get:
+      summary: Get current household
+      description: Returns the caller's household info (auto-provisioned if needed)
+      operationId: getHousehold
+      tags:
+        - Households
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Household info
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HouseholdResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /household/members:
+    get:
+      summary: List household members
+      description: List all members of the caller's household
+      operationId: listHouseholdMembers
+      tags:
+        - Households
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Household members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/HouseholdMemberResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /reference:
+    get:
+      summary: Get reference data
+      description: |
+        Returns all categories and units with Arabic and English labels.
+        Used by clients to populate dropdowns and validate keys.
+      operationId: getReferenceData
+      tags:
+        - Reference Data
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Reference data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReferenceDataResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /storage-locations:
+    post:
+      summary: Create storage location
+      description: Add a new storage location to the caller's household (supports nesting)
+      operationId: createStorageLocation
+      tags:
+        - Storage Locations
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StorageLocationCreate'
+      responses:
+        '201':
+          description: Location created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StorageLocationResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Parent location not found or not in household
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    get:
+      summary: List storage locations
+      description: Retrieve all storage locations for the caller's household (hierarchical)
+      operationId: listStorageLocations
+      tags:
+        - Storage Locations
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: parent_id
+          in: query
+          description: Filter by parent location (null for top-level)
+          schema:
+            type:
+              - string
+              - "null"
+            format: uuid
+          nullable: true
+      responses:
+        '200':
+          description: Storage locations
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StorageLocationListResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /storage-locations/{location_id}:
+    parameters:
+      - name: location_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Storage location identifier
+    get:
+      summary: Get storage location
+      description: Retrieve a single storage location by ID
+      operationId: getStorageLocation
+      tags:
+        - Storage Locations
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Storage location
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StorageLocationResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found (or belongs to another household)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    patch:
+      summary: Update storage location
+      description: Update a storage location
+      operationId: updateStorageLocation
+      tags:
+        - Storage Locations
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StorageLocationUpdate'
+      responses:
+        '200':
+          description: Location updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StorageLocationResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found (or belongs to another household)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      summary: Delete storage location
+      description: Delete a storage location (fails if it contains items or children)
+      operationId: deleteStorageLocation
+      tags:
+        - Storage Locations
+      security:
+        - BearerAuth: []
+      responses:
+        '204':
+          description: Location deleted
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found (or belongs to another household)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Location has children or items
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /inventory-items:
+    post:
+      summary: Create inventory item
+      description: |
+        Add a new inventory item to the caller's household inventory.
+        Household is auto-provisioned on first request.
+      operationId: createInventoryItem
+      tags:
+        - Inventory
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InventoryItemCreate'
+      responses:
+        '201':
+          description: Item created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryItemResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Unknown reference key (category/unit) or invalid storage location
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+
+    get:
+      summary: List inventory items
+      description: |
+        Retrieve inventory items for the caller's household with cursor pagination.
+        Supports filtering by category and/or storage location.
+      operationId: listInventoryItems
+      tags:
+        - Inventory
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: category
+          in: query
+          description: Filter by category key
+          schema:
+            type: string
+          example: "meat_poultry"
+        - name: storage_location_id
+          in: query
+          description: Filter by storage location ID
+          schema:
+            type: string
+            format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        - name: limit
+          in: query
+          description: Maximum items per page (max 100)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: cursor
+          in: query
+          description: Pagination cursor (opaque token from previous response)
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Inventory list with pagination
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryItemListResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Unknown filter key (returns empty list per FR-014)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryItemListResponse'
+
+  /inventory-items/{item_id}:
+    parameters:
+      - name: item_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Inventory item identifier
+    get:
+      summary: Get inventory item
+      description: Retrieve a single inventory item by ID (must belong to caller's household)
+      operationId: getInventoryItem
+      tags:
+        - Inventory
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Inventory item
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryItemResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found (or belongs to another household)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    patch:
+      summary: Update inventory item
+      description: |
+        Update any fields of an existing inventory item.
+        Validation rules match create.
+        Unknown reference keys rejected.
+      operationId: updateInventoryItem
+      tags:
+        - Inventory
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InventoryItemUpdate'
+      responses:
+        '200':
+          description: Item updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryItemResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found (or belongs to another household)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Unknown reference key, quantity <= 0, or invalid storage location
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+
+    delete:
+      summary: Delete inventory item
+      description: |
+        Permanently delete an inventory item from inventory.
+        Audit log entry created in same transaction.
+        Returns 404 if item belongs to another household.
+      operationId: deleteInventoryItem
+      tags:
+        - Inventory
+      security:
+        - BearerAuth: []
+      responses:
+        '204':
+          description: Item deleted
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found (or belongs to another household)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
