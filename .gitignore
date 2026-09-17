@@ -1,8 +1,67 @@
-node_modules/
-.env
-.env.*
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv
+venv/
+env/
+ENV/
+
+# Distribution / packaging
 dist/
 build/
+*.egg-info/
+*.egg
+
+# Test / coverage
+.coverage
+.coverage.*
 coverage/
+htmlcov/
+.pytest_cache/
+.tox/
+.hypothesis/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# OS
 .DS_Store
+Thumbs.db
+
+# Logs
 *.log
+logs/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Docker
+.docker/
+
+# Keys
+backend/keys/*.pem
+
+# Type checking
+.mypy_cache/
+*.pyi
+
+# Ruff
+.ruff_cache/
+
+# Alembic
+alembic/versions/*.pyc
+alembic/__pycache__/

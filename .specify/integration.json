@@ -1,15 +1,15 @@
 {
-  "version": "0.8.11",
+  "version": "1.0.7",
   "integration_state_schema": 1,
   "installed_integrations": [
-    "claude"
+    "hermes"
   ],
   "integration_settings": {
-    "claude": {
-      "script": "ps",
+    "hermes": {
+      "script": "sh",
       "invoke_separator": "-"
     }
   },
-  "integration": "claude",
-  "default_integration": "claude"
+  "integration": "hermes",
+  "default_integration": "hermes"
 }

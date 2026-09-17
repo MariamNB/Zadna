@@ -1,0 +1,38 @@
+# Docker
+.dockerignore
+Dockerfile*
+docker-compose*.yml
+*.log*
+.env*
+coverage/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+ENV/
+.pytest_cache/
+.tox/
+.hypothesis/
+.coverage
+htmlcov/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Keys
+backend/keys/*.pem
+
+# Testcontainers
+testcontainers-*

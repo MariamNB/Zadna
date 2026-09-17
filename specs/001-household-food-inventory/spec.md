@@ -131,6 +131,7 @@ explicit delete path, and verify it no longer appears in the inventory list.
 - **FR-004**: System MUST default `date_added` to today (in the household's applicable calendar date) when the caller does not provide it.
 - **FR-005**: System MUST accept `quantity` as a decimal number strictly greater than zero and MUST reject zero and negative values with a structured validation error.
 - **FR-028**: System MUST represent the food-item name as a single free-form Unicode field. The system MUST NOT require, produce, or store a separate Arabic/English translation of a user-entered name; bilingual labeling applies only to reference data (categories, units, storage locations — FR-006, FR-007, FR-008).
+- **FR-030**: System MAY store additional metadata on inventory items for future features: `prepared_at` (date food was prepared/cooked), `frozen_at` (date food was frozen), `opened_at` (date package was opened), `expires_at` (expiry date), `is_homemade` (boolean), `status` (enum: stored, thawing, consumed, discarded). These fields are optional in v1 and not required for MVP.
 
 **Categories, units, and storage locations (reference data)**
 
@@ -177,7 +178,7 @@ explicit delete path, and verify it no longer appears in the inventory list.
 
 - **Household**: The unit of ownership for all inventory data. Every food item belongs to exactly one household. Each household has a stable identifier and one or more members.
 - **Household Member**: An authenticated user's membership in a household. In v1, each user is a member of exactly one household, provisioned automatically on their first authenticated request (see FR-027); no API surface exists for users to join or leave.
-- **Food Item**: A single entry in a household's inventory. Attributes: identifier, household (owner), name (free-form Unicode text), category (reference), quantity (decimal > 0), unit (reference), storage location (reference), date added (calendar date, defaults today), notes (optional Unicode text), created-at, updated-at. Belongs to exactly one household.
+- **InventoryItem**: A single entry in a household's inventory. Attributes: identifier, household (owner), name (free-form Unicode text), category (reference), quantity (decimal > 0), unit (reference), storage location (reference), date added (calendar date, defaults today), notes (optional Unicode text), created-at, updated-at. Belongs to exactly one household.
 - **Category**: A reference entry with a stable identifier and localized display labels (Arabic + English). Fixed set in v1; extensible later.
 - **Unit**: A reference entry with a stable identifier and localized display labels (Arabic + English). Fixed set in v1; extensible later.
 - **Storage Location**: A reference entry with a stable identifier, localized display labels (Arabic + English), and an optional reference to a parent location to support future nesting. Fixed flat set in v1.
@@ -202,11 +203,11 @@ explicit delete path, and verify it no longer appears in the inventory list.
 - **Duplicate items are allowed (decided in clarification).** If a user adds "أرز" twice, both entries are stored as separate rows. The system performs no duplicate detection, no merge, and no prompt on add; consistent with "no silent mutation" (FR-025, FR-026). Users can consolidate manually via edit or delete.
 - **Filters combine with AND.** When both a category filter and a storage-location filter are applied, only items matching both are returned.
 - **`date_added` is user-editable.** Defaults to today on add; the user may change it (e.g., to backdate an item they had for a week). Future or past dates are accepted; validation only ensures a syntactically valid calendar date.
-- **Notes have a documented length limit.** v1 sets an upper bound (target: 500 characters) to prevent abuse and enable predictable storage; the exact number is finalized during planning.
+- **Notes have a documented length limit.** v1 sets an upper bound of **500 characters** to prevent abuse and enable predictable storage.
 - **Reference data is server-managed.** In v1, users cannot add or rename categories, units, or storage locations. Identifiers and labels are seeded at deployment.
 - **The API is versioned.** The first release of the inventory endpoints is `v1`; future breaking changes bump the version.
 - **List-response envelope (decided in clarification, see FR-029).** Inventory reads always return `{ items: [...], next_page_token: null|string }`. v1 always returns everything in a single page (`next_page_token` = `null`); the envelope is reserved so later pagination can ship without breaking clients.
 - **Localization payload shape.** Category, unit, and storage-location values are returned as an object with a stable `key` and a `label` map keyed by language code (`ar`, `en`), so clients render whichever language they need without renegotiating the contract when translations change.
 - **Deletion model (decided in clarification, see FR-018 / FR-020).** An explicit delete removes the row from the live inventory. Recovery is not exposed as a user feature in v1, but the audit record (FR-020) makes manual server-side recovery possible. No soft-delete flag, no user-facing undo, no scheduled purge job.
 - **Authentication mechanism is out of scope.** This feature assumes an existing authentication surface that identifies the caller and produces a household membership; the exact mechanism (session, token, etc.) is a planning decision, not a spec decision.
-- **Timezone / calendar-date semantics.** `date_added` is a calendar date (not a timestamp); "today" is evaluated in a timezone that will be defined during planning (a reasonable default is the household's configured timezone, defaulting to UTC if none).
+- **Timezone / calendar-date semantics.** `date_added` is a calendar date (not a timestamp); "today" is evaluated in the household's configured timezone. In v1, all households default to **UTC** (household.timezone column default). Future feature will allow household timezone configuration.
