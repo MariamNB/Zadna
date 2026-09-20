@@ -1,7 +1,7 @@
 """Authentication business logic."""
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from sqlalchemy import select
@@ -13,6 +13,7 @@ from app.auth.models import RefreshToken, User
 from app.auth.passwords import hash_password, verify_password
 from app.auth.schemas import LoginRequest, PasswordResetConfirmRequest, PasswordResetRequest, RegisterRequest, TokenResponse
 from app.common.exceptions import AuthorizationError, ConflictError, NotFoundError, ValidationError
+from app.config import settings
 
 
 class AuthService:
@@ -125,9 +126,7 @@ class AuthService:
         refresh_token_obj = RefreshToken(
             token_hash=refresh_token,
             user_id=user.id,
-            expires_at=datetime.now(timezone.utc).replace(
-                day=datetime.now(timezone.utc).day + 30
-            ),
+            expires_at=datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
         )
         self.session.add(refresh_token_obj)
         await self.session.flush()

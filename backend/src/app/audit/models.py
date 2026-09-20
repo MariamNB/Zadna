@@ -42,7 +42,7 @@ class AuditLog(Base):
         UUID(as_uuid=True),
         nullable=False,
     )
-    metadata: Mapped[dict] = mapped_column(JSON, nullable=False)
+    audit_metadata: Mapped[dict] = mapped_column(JSON, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

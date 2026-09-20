@@ -6,6 +6,14 @@ from sqlalchemy.orm import DeclarativeBase
 from app.config import settings
 from app.common.base_model import Base
 
+# Import all models to register them with Base.metadata
+from app.auth import models as auth_models  # noqa: F401
+from app.households import models as household_models  # noqa: F401
+from app.storage import models as storage_models  # noqa: F401
+from app.inventory import models as inventory_models  # noqa: F401
+from app.reference import models as reference_models  # noqa: F401
+from app.audit import models as audit_models  # noqa: F401
+
 engine = create_async_engine(
     settings.DATABASE_URL.replace("postgresql+asyncpg", "postgresql+psycopg"),
     echo=False,
@@ -24,6 +32,10 @@ async def get_db() -> AsyncSession:
     async with async_session_maker() as session:
         try:
             yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
         finally:
             await session.close()
 

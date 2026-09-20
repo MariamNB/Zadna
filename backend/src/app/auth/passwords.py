@@ -29,4 +29,4 @@ def verify_password(password: str, password_hash_str: str) -> bool:
     Returns:
         True if password matches, False otherwise
     """
-    return password_hash.verify(password_hash_str, password)
+    return password_hash.verify(password, password_hash_str)

@@ -30,7 +30,7 @@ class AuditService:
             action="create",
             entity_type=entity_type,
             entity_id=entity_id,
-            metadata=metadata,
+            audit_metadata=metadata,
         )
         self.session.add(audit)
         await self.session.flush()
@@ -51,7 +51,7 @@ class AuditService:
             action="update",
             entity_type=entity_type,
             entity_id=entity_id,
-            metadata=metadata,
+            audit_metadata=metadata,
         )
         self.session.add(audit)
         await self.session.flush()
@@ -72,7 +72,7 @@ class AuditService:
             action="delete",
             entity_type=entity_type,
             entity_id=entity_id,
-            metadata=metadata,
+            audit_metadata=metadata,
         )
         self.session.add(audit)
         await self.session.flush()
