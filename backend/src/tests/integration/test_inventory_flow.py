@@ -108,7 +108,8 @@ class TestInventoryFlow:
         data = response.json()
         assert data["name"] == "Carrots"
         assert data["category_key"] == "vegetables"
-        assert data["quantity"] == "1.5"
+        # Decimal(10,3) returns "1.500" for 1.5
+        assert data["quantity"] == "1.500"
         assert data["unit_key"] == "kg"
         assert data["storage_location_id"] == str(fridge_id)
         assert data["status"] == "stored"
@@ -184,7 +185,8 @@ class TestInventoryFlow:
         
         assert response.status_code == 200
         data = response.json()
-        assert data["quantity"] == "5.0"
+        # Decimal(10,3) returns "5.000" for 5.0
+        assert data["quantity"] == "5.000"
         assert data["notes"] == "Updated notes"
         assert data["id"] == str(item.id)
     

@@ -19,19 +19,19 @@ class TestAuthFlow:
         data = response.json()
         assert "access_token" in data
         assert data["token_type"] == "bearer"
-        assert "user_id" in data
-        assert "household_id" in data
+        assert "expires_in" in data
+        assert "refresh_token" in data
     
     @pytest.mark.asyncio
     async def test_register_duplicate_email_returns_400(self, client: AsyncClient, test_user):
-        """Register with existing email returns 400."""
+        """Register with existing email returns 409 Conflict."""
         user, _, _ = test_user
         response = await client.post(
             "/api/v1/auth/register",
             json={"email": user.email, "password": "anotherpass123"},
         )
         
-        assert response.status_code == 400
+        assert response.status_code == 409
         assert "already registered" in response.json()["detail"].lower()
     
     @pytest.mark.asyncio
@@ -40,15 +40,8 @@ class TestAuthFlow:
         user, _, _ = test_user
         response = await client.post(
             "/api/v1/auth/login",
-            json={"email": user.email, "password": "securepass123"},  # Note: test uses different password
+            json={"email": user.email, "password": "securepass123"},
         )
-        
-        # Since we don't know the actual password hash, this will fail
-        # The test is here to document the expected flow
-        # In real tests, we'd use a known password or mock the hash
-        # For now, skip this as it requires proper password setup
-        if response.status_code == 401:
-            pytest.skip("Password hash not known in test fixture")
         
         assert response.status_code == 200
         data = response.json()

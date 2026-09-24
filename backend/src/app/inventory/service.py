@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.inventory.models import InventoryItem
-from app.inventory.schemas import InventoryItemCreate, InventoryItemUpdate, InventoryItemResponse
+from app.inventory.schemas import InventoryItemCreate, InventoryItemUpdate, InventoryItemResponse, LocalizedLabel
 from app.storage.models import StorageLocation
 from app.reference.models import Category, Unit
 from app.common.exceptions import NotFoundError, ValidationError
@@ -96,8 +96,16 @@ class InventoryService:
             metadata=self._item_to_dict(item),
         )
 
-        await self.session.refresh(item)
-        return item
+        stmt = (
+            select(InventoryItem)
+            .where(InventoryItem.id == item.id)
+            .options(
+                selectinload(InventoryItem.category),
+                selectinload(InventoryItem.unit),
+                selectinload(InventoryItem.storage_location),
+            )
+        )
+        return await self.session.scalar(stmt)
 
     async def get(
         self,
@@ -118,6 +126,37 @@ class InventoryService:
             )
         )
         return await self.session.scalar(stmt)
+    
+    def _item_to_response(self, item: InventoryItem) -> InventoryItemResponse:
+        """Convert InventoryItem model to InventoryItemResponse with proper relationships."""
+        # Category and Unit should always be loaded via selectinload, but handle None defensively
+        category_label = LocalizedLabel(key=item.category.key, labels=item.category.labels) if item.category else LocalizedLabel(key="", labels={"en": "", "ar": ""})
+        unit_label = LocalizedLabel(key=item.unit.key, labels=item.unit.labels) if item.unit else LocalizedLabel(key="", labels={"en": "", "ar": ""})
+        
+        return InventoryItemResponse(
+            id=item.id,
+            household_id=item.household_id,
+            name=item.name,
+            category_key=item.category_key,
+            quantity=item.quantity,
+            unit_key=item.unit_key,
+            storage_location_id=item.storage_location_id,
+            prepared_at=item.prepared_at,
+            frozen_at=item.frozen_at,
+            opened_at=item.opened_at,
+            expires_at=item.expires_at,
+            is_homemade=item.is_homemade,
+            status=item.status,
+            date_added=item.date_added,
+            notes=item.notes,
+            created_by=item.created_by,
+            updated_by=item.updated_by,
+            created_at=item.created_at,
+            updated_at=item.updated_at,
+            category=category_label,
+            unit=unit_label,
+            storage_location=item.storage_location,
+        )
 
     async def list(
         self,
@@ -263,8 +302,7 @@ class InventoryService:
             metadata={"before": before_state, "after": after_state},
         )
 
-        await self.session.refresh(item)
-        return item
+        return await self.get(household_id, item_id)
 
     async def delete(
         self,

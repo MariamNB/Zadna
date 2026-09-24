@@ -1,7 +1,7 @@
 """Password hashing using Argon2id via pwdlib."""
 
 from pwdlib import PasswordHash
-
+from pwdlib.exceptions import UnknownHashError
 
 # Argon2id hasher with recommended parameters
 password_hash = PasswordHash.recommended()
@@ -29,4 +29,8 @@ def verify_password(password: str, password_hash_str: str) -> bool:
     Returns:
         True if password matches, False otherwise
     """
-    return password_hash.verify(password, password_hash_str)
+    try:
+        return password_hash.verify(password, password_hash_str)
+    except Exception:
+        # pwdlib throws exceptions for invalid hashes or wrong passwords
+        return False

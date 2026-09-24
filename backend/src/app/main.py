@@ -1,9 +1,18 @@
 """FastAPI application factory."""
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
+from app.common.exceptions import (
+    AppException,
+    AuthorizationError,
+    ConflictError,
+    ForbiddenError,
+    NotFoundError,
+    ValidationError,
+)
 from app.config import settings
 from app.database import init_db, close_db
 
@@ -25,11 +34,43 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # CORS middleware
+    # Exception handlers
+    @app.exception_handler(AppException)
+    async def app_exception_handler(request: Request, exc: AppException):
+        print(f"AppException caught: {type(exc).__name__}: {exc.message}")
+        status_code = 500
+        if isinstance(exc, NotFoundError):
+            status_code = 404
+        elif isinstance(exc, ValidationError):
+            status_code = 422
+        elif isinstance(exc, AuthorizationError):
+            status_code = 401
+        elif isinstance(exc, ConflictError):
+            status_code = 409
+        elif isinstance(exc, ForbiddenError):
+            status_code = 403
+        
+        return JSONResponse(
+            status_code=status_code,
+            content={"detail": exc.message, "code": exc.code, "details": exc.details},
+        )
+
+    # Catch-all exception handler for unhandled exceptions
+    @app.exception_handler(Exception)
+    async def general_exception_handler(request: Request, exc: Exception):
+        import traceback
+        print(f"General Exception caught: {type(exc).__name__}: {exc}")
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Internal server error", "code": "INTERNAL_ERROR", "details": str(exc)},
+        )
+
+    # CORS middleware — wildcard origin + credentials=True is forbidden by spec
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
-        allow_credentials=True,
+        allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
     )

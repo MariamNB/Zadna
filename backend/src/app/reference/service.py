@@ -21,7 +21,7 @@ class ReferenceService:
         result = await self.session.scalars(stmt)
         categories = result.all()
         return [
-            LocalizedLabel(key=c.key, labels=c.labels)
+            LocalizedLabel(key=c.key, labels=c.labels, sort_order=c.sort_order, is_active=c.is_active)
             for c in categories
         ]
 
@@ -31,7 +31,7 @@ class ReferenceService:
         result = await self.session.scalars(stmt)
         units = result.all()
         return [
-            LocalizedLabel(key=u.key, labels=u.labels)
+            LocalizedLabel(key=u.key, labels=u.labels, sort_order=u.sort_order, is_active=u.is_active)
             for u in units
         ]
 

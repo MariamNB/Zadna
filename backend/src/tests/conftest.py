@@ -41,6 +41,15 @@ async def test_engine():
     await engine.dispose()
 
 
+@pytest.fixture(scope="session")
+def event_loop():
+    """Create event loop for session-scoped fixtures."""
+    import asyncio
+    loop = asyncio.get_event_loop_policy().new_event_loop()
+    yield loop
+    loop.close()
+
+
 @pytest_asyncio.fixture(scope="function")
 async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
     """Create a new database session for each test."""
@@ -76,9 +85,12 @@ async def auth_service(db_session: AsyncSession) -> AuthService:
 @pytest_asyncio.fixture
 async def test_user(db_session: AsyncSession) -> tuple[User, Household, HouseholdMember]:
     """Create a test user with household and membership."""
+    import uuid
+    from app.auth.passwords import hash_password
+    unique_email = f"test_{uuid.uuid4().hex[:8]}@example.com"
     user = User(
-        email="test@example.com",
-        password_hash="hashed_password",
+        email=unique_email,
+        password_hash=hash_password("securepass123"),
         is_active=True,
         email_verified=True,
     )
@@ -106,9 +118,12 @@ async def test_user(db_session: AsyncSession) -> tuple[User, Household, Househol
 @pytest_asyncio.fixture
 async def test_user_2(db_session: AsyncSession) -> tuple[User, Household, HouseholdMember]:
     """Create a second test user with separate household."""
+    import uuid
+    from app.auth.passwords import hash_password
+    unique_email = f"test2_{uuid.uuid4().hex[:8]}@example.com"
     user = User(
-        email="test2@example.com",
-        password_hash="hashed_password",
+        email=unique_email,
+        password_hash=hash_password("securepass123"),
         is_active=True,
         email_verified=True,
     )
@@ -138,7 +153,7 @@ async def auth_headers(client: AsyncClient, auth_service: AuthService, test_user
     """Get authentication headers for test user."""
     user, household, member = test_user
     # Use the auth service to create a token
-    tokens = await auth_service.create_tokens(user.id, member.id, household.id)
+    tokens = await auth_service._create_token_response(user)
     return {"Authorization": f"Bearer {tokens.access_token}"}
 
 
@@ -146,31 +161,51 @@ async def auth_headers(client: AsyncClient, auth_service: AuthService, test_user
 async def auth_headers_2(client: AsyncClient, auth_service: AuthService, test_user_2) -> dict:
     """Get authentication headers for second test user."""
     user, household, member = test_user_2
-    tokens = await auth_service.create_tokens(user.id, member.id, household.id)
+    tokens = await auth_service._create_token_response(user)
     return {"Authorization": f"Bearer {tokens.access_token}"}
 
 
 @pytest_asyncio.fixture
 async def reference_data(db_session: AsyncSession):
     """Create reference data (categories and units)."""
-    categories = [
-        Category(key="vegetables", labels={"en": "Vegetables", "ar": "خضروات"}, sort_order=1, is_active=True),
-        Category(key="fruits", labels={"en": "Fruits", "ar": "فواكه"}, sort_order=2, is_active=True),
-        Category(key="dairy", labels={"en": "Dairy", "ar": "ألبان"}, sort_order=3, is_active=True),
-        Category(key="meat", labels={"en": "Meat", "ar": "لحوم"}, sort_order=4, is_active=True),
-        Category(key="pantry", labels={"en": "Pantry Items", "ar": "مخزن"}, sort_order=5, is_active=True),
-    ]
-    units = [
-        Unit(key="kg", labels={"en": "Kilogram", "ar": "كيلوغرام"}, sort_order=1, is_active=True),
-        Unit(key="g", labels={"en": "Gram", "ar": "جرام"}, sort_order=2, is_active=True),
-        Unit(key="piece", labels={"en": "Piece", "ar": "قطعة"}, sort_order=3, is_active=True),
-        Unit(key="liter", labels={"en": "Liter", "ar": "لتر"}, sort_order=4, is_active=True),
-        Unit(key="ml", labels={"en": "Milliliter", "ar": "ملليلتر"}, sort_order=5, is_active=True),
-    ]
-    for cat in categories:
-        db_session.add(cat)
-    for unit in units:
-        db_session.add(unit)
+    # Check if categories already exist
+    from sqlalchemy import select
+    from app.reference.models import Category, Unit
+    
+    stmt = select(Category)
+    result = await db_session.scalars(stmt)
+    existing_categories = result.all()
+    
+    if existing_categories:
+        categories = existing_categories
+    else:
+        categories = [
+            Category(key="vegetables", labels={"en": "Vegetables", "ar": "خضروات"}, sort_order=1, is_active=True),
+            Category(key="fruits", labels={"en": "Fruits", "ar": "فواكه"}, sort_order=2, is_active=True),
+            Category(key="dairy", labels={"en": "Dairy", "ar": "ألبان"}, sort_order=3, is_active=True),
+            Category(key="meat", labels={"en": "Meat", "ar": "لحوم"}, sort_order=4, is_active=True),
+            Category(key="pantry", labels={"en": "Pantry Items", "ar": "مخزن"}, sort_order=5, is_active=True),
+        ]
+        for cat in categories:
+            db_session.add(cat)
+    
+    stmt = select(Unit)
+    result = await db_session.scalars(stmt)
+    existing_units = result.all()
+    
+    if existing_units:
+        units = existing_units
+    else:
+        units = [
+            Unit(key="kg", labels={"en": "Kilogram", "ar": "كيلوغرام"}, sort_order=1, is_active=True),
+            Unit(key="g", labels={"en": "Gram", "ar": "جرام"}, sort_order=2, is_active=True),
+            Unit(key="piece", labels={"en": "Piece", "ar": "قطعة"}, sort_order=3, is_active=True),
+            Unit(key="liter", labels={"en": "Liter", "ar": "لتر"}, sort_order=4, is_active=True),
+            Unit(key="ml", labels={"en": "Milliliter", "ar": "ملليلتر"}, sort_order=5, is_active=True),
+        ]
+        for unit in units:
+            db_session.add(unit)
+    
     await db_session.commit()
     return categories, units
 

@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_household_id
 from app.audit.models import AuditLog
+from app.audit.schemas import AuditLogResponse
 from app.audit.service import AuditService
 from app.database import get_db
 
@@ -18,7 +19,7 @@ async def get_audit_service(db: AsyncSession = Depends(get_db)) -> AuditService:
     return AuditService(db)
 
 
-@router.get("", response_model=List[dict])
+@router.get("", response_model=List[AuditLogResponse])
 async def get_audit_logs(
     entity_type: Optional[str] = Query(None),
     entity_id: Optional[uuid.UUID] = Query(None),
@@ -28,14 +29,4 @@ async def get_audit_logs(
 ):
     """Get audit logs for the current household (admin/internal)."""
     logs = await service.get_audit_logs(household_id, entity_type, entity_id, limit)
-    return [
-        {
-            "id": str(log.id),
-            "action": log.action,
-            "entity_type": log.entity_type,
-            "entity_id": str(log.entity_id),
-            "metadata": log.metadata,
-            "created_at": log.created_at.isoformat(),
-        }
-        for log in logs
-    ]
+    return logs

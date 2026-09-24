@@ -34,7 +34,8 @@ async def create_inventory_item(
     service: InventoryService = Depends(get_inventory_service),
 ):
     """Create a new inventory item."""
-    return await service.create(household_id, member_id, data)
+    item = await service.create(household_id, member_id, data)
+    return service._item_to_response(item)
 
 
 @router.get("", response_model=InventoryItemListResponse)
@@ -49,7 +50,8 @@ async def list_inventory_items(
     """List inventory items with pagination and optional filters."""
     pagination = PaginationParams(limit=limit, cursor=cursor)
     items, next_token = await service.list(household_id, category, storage_location_id, pagination)
-    return InventoryItemListResponse(items=items, next_page_token=next_token)
+    response_items = [service._item_to_response(item) for item in items]
+    return InventoryItemListResponse(items=response_items, next_page_token=next_token)
 
 
 @router.get("/{item_id}", response_model=InventoryItemResponse)
@@ -65,7 +67,7 @@ async def get_inventory_item(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Inventory item not found",
         )
-    return item
+    return service._item_to_response(item)
 
 
 @router.patch("/{item_id}", response_model=InventoryItemResponse)
@@ -83,7 +85,7 @@ async def update_inventory_item(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Inventory item not found",
         )
-    return item
+    return service._item_to_response(item)
 
 
 @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT)

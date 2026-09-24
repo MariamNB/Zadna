@@ -29,7 +29,7 @@ class TestAuditFlow:
         assert "action" in log
         assert "entity_type" in log
         assert "entity_id" in log
-        assert "metadata" in log
+        assert "audit_metadata" in log  # Field is named audit_metadata in response
         assert "created_at" in log
         
         # Find the delete log

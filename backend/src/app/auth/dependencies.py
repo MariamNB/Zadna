@@ -3,7 +3,8 @@
 import uuid
 from typing import Optional
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,20 +15,22 @@ from app.common.exceptions import AuthorizationError, NotFoundError
 from app.database import get_db
 from app.households.models import HouseholdMember
 
+_bearer = HTTPBearer(auto_error=False)
+
 
 async def get_current_user(
-    authorization: Optional[str] = Header(None),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer),
     db: AsyncSession = Depends(get_db),
 ) -> User:
     """Get current authenticated user from JWT token."""
-    if not authorization or not authorization.startswith("Bearer "):
+    if not credentials:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing or invalid authorization header",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    token = authorization.split(" ")[1]
+    token = credentials.credentials
 
     try:
         payload = decode_access_token(token)

@@ -10,6 +10,8 @@ class LocalizedLabel(BaseModel):
 
     key: str
     labels: dict[str, str]  # {"ar": "...", "en": "..."}
+    sort_order: int
+    is_active: bool
 
 
 class ReferenceDataResponse(BaseModel):
