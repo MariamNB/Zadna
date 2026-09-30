@@ -56,41 +56,38 @@ class InventoryNotifier extends StateNotifier<InventoryState> {
     bool refresh = false,
   }) async {
     if (refresh) {
-      state = state.copyWith(
+      state = InventoryState(
         isLoading: true,
-        error: null,
         filterCategory: category,
         filterStorageLocation: storageLocationId,
-        items: [],
-        nextPageToken: null,
       );
     } else if (state.isLoading || state.isLoadingMore) {
       return;
     } else {
-      state = state.copyWith(isLoadingMore: true, error: null);
+      state = state.copyWith(isLoadingMore: true);
     }
 
     try {
       final response = await _repository.listItems(
-        category: category,
-        storageLocationId: storageLocationId,
+        category: category ?? state.filterCategory,
+        storageLocationId: storageLocationId ?? state.filterStorageLocation,
         cursor: refresh ? null : state.nextPageToken,
       );
 
       final newItems = refresh ? response.items : [...state.items, ...response.items];
 
-      state = state.copyWith(
+      state = InventoryState(
         items: newItems,
         nextPageToken: response.nextPageToken,
-        isLoading: false,
-        isLoadingMore: false,
         filterCategory: category ?? state.filterCategory,
         filterStorageLocation: storageLocationId ?? state.filterStorageLocation,
       );
     } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        isLoadingMore: false,
+      state = InventoryState(
+        items: state.items,
+        nextPageToken: state.nextPageToken,
+        filterCategory: state.filterCategory,
+        filterStorageLocation: state.filterStorageLocation,
         error: e.toString(),
       );
     }
@@ -114,12 +111,7 @@ class InventoryNotifier extends StateNotifier<InventoryState> {
   }
 
   void clearFilters() {
-    state = state.copyWith(
-      filterCategory: null,
-      filterStorageLocation: null,
-      items: [],
-      nextPageToken: null,
-    );
+    state = const InventoryState();
     loadItems(refresh: true);
   }
 
@@ -155,8 +147,6 @@ class InventoryNotifier extends StateNotifier<InventoryState> {
         dateAdded: dateAdded,
         notes: notes,
       );
-      // Refresh the full list from backend to avoid duplicates from
-      // any stale optimistic state.
       await loadItems(
         category: state.filterCategory,
         storageLocationId: state.filterStorageLocation,

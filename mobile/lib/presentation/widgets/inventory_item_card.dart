@@ -13,11 +13,8 @@ class InventoryItemCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final (fill, accent) = KT.cardPairFor(item.categoryKey);
-    final rotation = KT.rotationFor(item.id);
 
-    return Transform.rotate(
-      angle: rotation,
-      child: GestureDetector(
+    return GestureDetector(
         onTap: () => _showDetail(context, ref),
         child: Container(
           decoration: BoxDecoration(
@@ -83,7 +80,7 @@ class InventoryItemCard extends ConsumerWidget {
               // Location
               Row(
                 children: [
-                  Icon(Icons.place_outlined, size: 13, color: Colors.black38),
+                  const Icon(Icons.place_outlined, size: 13, color: Colors.black38),
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
@@ -109,7 +106,6 @@ class InventoryItemCard extends ConsumerWidget {
             ],
           ),
         ),
-      ),
     );
   }
 

@@ -1,5 +1,3 @@
-import 'package:dio/dio.dart';
-
 import '../../core/api/api_client.dart';
 import '../models/inventory_item.dart';
 import '../models/reference_data.dart';
@@ -135,9 +133,27 @@ class InventoryRepository {
   }
 
   Future<List<StorageLocation>> getStorageLocations() async {
-    final response = await _apiClient.dio.get('/storage-locations');
-    return (response.data as List)
-        .map((e) => StorageLocation.fromJson(e as Map<String, dynamic>))
-        .toList();
+    // The endpoint returns one level at a time. Item placement must include
+    // drawers, shelves, and other descendants as well as top-level locations.
+    Future<List<StorageLocation>> loadLevel(String? parentId) async {
+      final response = await _apiClient.dio.get(
+        '/storage-locations',
+        queryParameters: parentId == null ? null : {'parent_id': parentId},
+      );
+      final locations = (response.data as List)
+          .map((e) => StorageLocation.fromJson(e as Map<String, dynamic>))
+          .toList();
+      final children = await Future.wait(
+        locations.map((location) => loadLevel(location.id)),
+      );
+      return [
+        for (var i = 0; i < locations.length; i++) ...[
+          locations[i],
+          ...children[i],
+        ],
+      ];
+    }
+
+    return loadLevel(null);
   }
 }

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers.dart';
 import '../../core/kitchen_theme.dart';
 import '../../data/models/inventory_item.dart';
+import '../widgets/storage_location_picker.dart';
 
 class AddItemScreen extends ConsumerStatefulWidget {
   const AddItemScreen({super.key});
@@ -49,6 +50,7 @@ class _AddItemScreenState extends ConsumerState<AddItemScreen> {
         n.getUnits(),
         n.getStorageLocations(),
       ]);
+      if (!mounted) return;
       setState(() {
         _categories = results[0] as List<LocalizedLabel>;
         _units = results[1] as List<LocalizedLabel>;
@@ -56,7 +58,9 @@ class _AddItemScreenState extends ConsumerState<AddItemScreen> {
         _isLoadingRefData = false;
       });
     } catch (_) {
+      if (!mounted) return;
       setState(() => _isLoadingRefData = false);
+      _snack('Could not load item options. Please reopen this form to retry.');
     }
   }
 
@@ -232,15 +236,10 @@ class _AddItemScreenState extends ConsumerState<AddItemScreen> {
                                 ],
                               ),
                               const SizedBox(height: 14),
-                              _Drop<String>(
+                              StorageLocationPicker(
                                 value: _selectedStorageLocationId,
-                                label: 'Storage Location',
-                                items: _storageLocations.map((loc) => DropdownMenuItem(
-                                  value: loc.id,
-                                  child: Text(loc.name, style: KT.poppins()),
-                                )).toList(),
+                                locations: _storageLocations,
                                 onChanged: (v) => setState(() => _selectedStorageLocationId = v),
-                                validator: (v) => v == null ? 'Select a location' : null,
                               ),
                               const SizedBox(height: 14),
                               _Drop<String>(

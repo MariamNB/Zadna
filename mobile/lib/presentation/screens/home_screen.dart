@@ -92,9 +92,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             onSelected: (value) async {
               if (value == 'logout') {
                 await ref.read(authNotifierProvider.notifier).logout();
+              } else if (value == 'locations') {
+                if (mounted) Navigator.of(context).pushNamed('/locations');
               }
             },
             itemBuilder: (_) => [
+              PopupMenuItem(
+                value: 'locations',
+                child: Row(children: [
+                  const Icon(Icons.place_outlined, size: 18),
+                  const SizedBox(width: 8),
+                  Text('Manage Locations', style: KT.poppins()),
+                ]),
+              ),
               PopupMenuItem(
                 value: 'logout',
                 child: Row(children: [
@@ -223,11 +233,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             color: KT.kGreen,
             child: GridView.builder(
               padding: const EdgeInsets.fromLTRB(16, 20, 16, 100),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
+              gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: 220,
+                mainAxisExtent: 155,
                 crossAxisSpacing: 16,
                 mainAxisSpacing: 16,
-                childAspectRatio: 0.82,
               ),
               itemCount: state.items.length + (state.nextPageToken != null ? 1 : 0),
               itemBuilder: (context, index) {

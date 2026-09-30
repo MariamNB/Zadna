@@ -68,7 +68,9 @@ class AuthRepository {
         '/auth/refresh',
         data: {'refresh_token': refreshToken},
       );
-      return TokenResponse.fromJson(response.data);
+      final tokens = TokenResponse.fromJson(response.data);
+      await _storeTokenResponse(tokens);
+      return tokens;
     } on DioException catch (e) {
       if (e.response?.statusCode == 401) {
         await _apiClient.logout();
