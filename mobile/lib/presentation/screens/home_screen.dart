@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -16,6 +18,24 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
+  final _searchController = TextEditingController();
+  Timer? _searchDebounce;
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _search(String value) {
+    setState(() {});
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 300), () {
+      if (mounted) ref.read(inventoryNotifierProvider.notifier).search(value);
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -38,6 +58,40 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       body: Column(
         children: [
           _buildHeader(context),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: TextField(
+              controller: _searchController,
+              onChanged: _search,
+              maxLength: 200,
+              style: KT.poppins(),
+              decoration: InputDecoration(
+                hintText: 'Search items, categories, or locations',
+                counterText: '',
+                prefixIcon: const Icon(Icons.search, color: KT.kGreen),
+                suffixIcon: _searchController.text.isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: 'Clear search',
+                        icon: const Icon(Icons.close),
+                        onPressed: () {
+                          _searchController.clear();
+                          _search('');
+                        },
+                      ),
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: const BorderSide(color: Colors.black12),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: const BorderSide(color: Colors.black12),
+                ),
+              ),
+            ),
+          ),
           Expanded(child: _buildBody(inventoryState)),
         ],
       ),
@@ -73,7 +127,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('My Kitchen', style: KT.poppins(size: 13, color: KT.kDarkYellow, weight: FontWeight.w500)),
-                Text('Inventory Board', style: KT.poppins(size: 22, weight: FontWeight.w800, color: KT.kLightYellow)),
+                Text('Inventory', style: KT.poppins(size: 22, weight: FontWeight.w800, color: KT.kLightYellow)),
               ],
             ),
           ),
@@ -184,10 +238,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               child: const Center(child: Text('🛒', style: TextStyle(fontSize: 52))),
             ),
             const SizedBox(height: 24),
-            Text('No items yet', style: KT.poppins(size: 20, weight: FontWeight.w700)),
+            Text(state.searchQuery.isNotEmpty || state.filterCategory != null ? 'No matching items' : 'No items yet', style: KT.poppins(size: 20, weight: FontWeight.w700)),
             const SizedBox(height: 8),
             Text(
-              'Tap "Add Item" to start\ntracking your kitchen',
+              state.searchQuery.isNotEmpty || state.filterCategory != null
+                  ? 'Try another search or change your filters'
+                  : 'Tap "Add Item" to start\ntracking your kitchen',
               style: KT.poppins(size: 14, color: Colors.black45),
               textAlign: TextAlign.center,
             ),
@@ -226,29 +282,37 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
 
-        // Grid
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              '${state.items.length}${state.nextPageToken != null ? '+' : ''} items',
+              style: KT.poppins(size: 12, color: Colors.black54),
+            ),
+          ),
+        ),
         Expanded(
           child: RefreshIndicator(
             onRefresh: () => ref.read(inventoryNotifierProvider.notifier).refresh(),
             color: KT.kGreen,
-            child: GridView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 20, 16, 100),
-              gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                maxCrossAxisExtent: 220,
-                mainAxisExtent: 155,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-              ),
+            child: ListView.separated(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
               itemCount: state.items.length + (state.nextPageToken != null ? 1 : 0),
               itemBuilder: (context, index) {
                 if (index == state.items.length) {
-                  if (state.isLoadingMore) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    ref.read(inventoryNotifierProvider.notifier).loadMore();
-                  });
-                  return const SizedBox.shrink();
+                  return Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: state.isLoadingMore
+                        ? const Center(child: CircularProgressIndicator())
+                        : TextButton.icon(
+                            onPressed: () => ref.read(inventoryNotifierProvider.notifier).loadMore(),
+                            icon: const Icon(Icons.expand_more),
+                            label: const Text('Load more items'),
+                          ),
+                  );
                 }
                 return InventoryItemCard(item: state.items[index]);
               },

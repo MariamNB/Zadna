@@ -12,100 +12,86 @@ class InventoryItemCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final (fill, accent) = KT.cardPairFor(item.categoryKey);
+    final (_, accent) = KT.cardPairFor(item.categoryKey);
 
-    return GestureDetector(
+    final quantity = num.tryParse(item.quantity);
+    final quantityLabel = quantity == null
+        ? item.quantity
+        : NumberFormat('0.###').format(quantity);
+
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
         onTap: () => _showDetail(context, ref),
-        child: Container(
-          decoration: BoxDecoration(
-            color: fill,
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-              BoxShadow(
-                color: accent.withOpacity(0.18),
-                blurRadius: 12,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
             children: [
-              // Category pill + status dot
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: accent.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      item.category.labels['en'] ?? item.categoryKey,
-                      style: KT.poppins(size: 10, weight: FontWeight.w700, color: accent),
-                    ),
-                  ),
-                  const Spacer(),
-                  _StatusDot(status: item.status, accent: accent),
-                ],
+              Container(
+                width: 5,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: accent,
+                  borderRadius: BorderRadius.circular(4),
+                ),
               ),
-              const SizedBox(height: 12),
-
-              // Name
-              Text(
-                item.name,
-                style: KT.poppins(size: 15, weight: FontWeight.w700, color: KT.kDarkBlue),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 6),
-
-              // Quantity
-              Row(
-                children: [
-                  Icon(Icons.straighten_rounded, size: 13, color: accent),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      '${item.quantity} ${item.unit.labels['en'] ?? item.unitKey}',
-                      style: KT.poppins(size: 12, weight: FontWeight.w600, color: KT.kDarkBlue),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(item.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: KT.poppins(size: 15, weight: FontWeight.w700)),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${item.category.labels['en'] ?? item.categoryKey} · ${item.storageLocation.name}',
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
+                      style: KT.poppins(size: 12, color: Colors.black54),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-
-              // Location
-              Row(
-                children: [
-                  const Icon(Icons.place_outlined, size: 13, color: Colors.black38),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      item.storageLocation.name,
-                      style: KT.poppins(size: 11, color: Colors.black45, style: FontStyle.italic),
-                      overflow: TextOverflow.ellipsis,
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        _StatusDot(status: item.status, accent: accent),
+                        if (item.expiresAt != null)
+                          _ExpiryTag(dateStr: item.expiresAt!, accent: accent),
+                        if (item.isHomemade)
+                          Text('Homemade', style: KT.poppins(size: 10, color: accent)),
+                      ],
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-
-              // Expiry
-              if (item.expiresAt != null) ...[
-                const SizedBox(height: 8),
-                _ExpiryTag(dateStr: item.expiresAt!, accent: accent),
-              ],
-
-              if (item.isHomemade) ...[
-                const SizedBox(height: 6),
-                Text('🏠 Homemade',
-                    style: KT.poppins(size: 10, weight: FontWeight.w600, color: accent)),
-              ],
+              const SizedBox(width: 12),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 100),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(quantityLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: KT.poppins(size: 16, weight: FontWeight.w700)),
+                    Text(item.unit.labels['en'] ?? item.unitKey,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: KT.poppins(size: 11, color: Colors.black54)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Icon(Icons.chevron_right, size: 18, color: Colors.black38),
             ],
           ),
         ),
+      ),
     );
   }
 

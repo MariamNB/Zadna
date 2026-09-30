@@ -44,12 +44,13 @@ async def list_inventory_items(
     storage_location_id: Optional[uuid.UUID] = Query(None, description="Filter by storage location ID"),
     limit: int = Query(50, ge=1, le=100),
     cursor: Optional[str] = Query(None, description="Pagination cursor"),
+    q: Optional[str] = Query(None, max_length=200, description="Search item name, category, or location"),
     household_id: uuid.UUID = Depends(get_current_household_id),
     service: InventoryService = Depends(get_inventory_service),
 ):
     """List inventory items with pagination and optional filters."""
     pagination = PaginationParams(limit=limit, cursor=cursor)
-    items, next_token = await service.list(household_id, category, storage_location_id, pagination)
+    items, next_token = await service.list(household_id, category, storage_location_id, pagination, q)
     response_items = [service._item_to_response(item) for item in items]
     return InventoryItemListResponse(items=response_items, next_page_token=next_token)
 

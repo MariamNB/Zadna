@@ -13,6 +13,7 @@ class InventoryRepository {
     String? storageLocationId,
     int limit = 50,
     String? cursor,
+    String? searchQuery,
   }) async {
     final queryParams = <String, dynamic>{
       'limit': limit,
@@ -20,6 +21,9 @@ class InventoryRepository {
     if (category != null) queryParams['category'] = category;
     if (storageLocationId != null) queryParams['storage_location_id'] = storageLocationId;
     if (cursor != null) queryParams['cursor'] = cursor;
+    if (searchQuery != null && searchQuery.isNotEmpty) {
+      queryParams['q'] = searchQuery;
+    }
 
     final response = await _apiClient.dio.get(
       '/inventory-items',

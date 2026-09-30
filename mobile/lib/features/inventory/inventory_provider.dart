@@ -13,6 +13,7 @@ class InventoryState {
   final String? error;
   final String? filterCategory;
   final String? filterStorageLocation;
+  final String searchQuery;
 
   const InventoryState({
     this.items = const [],
@@ -22,6 +23,7 @@ class InventoryState {
     this.error,
     this.filterCategory,
     this.filterStorageLocation,
+    this.searchQuery = '',
   });
 
   InventoryState copyWith({
@@ -32,6 +34,7 @@ class InventoryState {
     String? error,
     String? filterCategory,
     String? filterStorageLocation,
+    String? searchQuery,
   }) {
     return InventoryState(
       items: items ?? this.items,
@@ -41,12 +44,14 @@ class InventoryState {
       error: error ?? this.error,
       filterCategory: filterCategory ?? this.filterCategory,
       filterStorageLocation: filterStorageLocation ?? this.filterStorageLocation,
+      searchQuery: searchQuery ?? this.searchQuery,
     );
   }
 }
 
 class InventoryNotifier extends StateNotifier<InventoryState> {
   final InventoryRepository _repository;
+  int _requestVersion = 0;
 
   InventoryNotifier(this._repository) : super(const InventoryState());
 
@@ -54,12 +59,16 @@ class InventoryNotifier extends StateNotifier<InventoryState> {
     String? category,
     String? storageLocationId,
     bool refresh = false,
+    String? searchQuery,
   }) async {
+    final query = searchQuery ?? state.searchQuery;
     if (refresh) {
+      _requestVersion++;
       state = InventoryState(
         isLoading: true,
         filterCategory: category,
         filterStorageLocation: storageLocationId,
+        searchQuery: query,
       );
     } else if (state.isLoading || state.isLoadingMore) {
       return;
@@ -67,12 +76,16 @@ class InventoryNotifier extends StateNotifier<InventoryState> {
       state = state.copyWith(isLoadingMore: true);
     }
 
+    final requestVersion = _requestVersion;
     try {
       final response = await _repository.listItems(
         category: category ?? state.filterCategory,
         storageLocationId: storageLocationId ?? state.filterStorageLocation,
         cursor: refresh ? null : state.nextPageToken,
+        searchQuery: query,
       );
+
+      if (!mounted || requestVersion != _requestVersion) return;
 
       final newItems = refresh ? response.items : [...state.items, ...response.items];
 
@@ -81,13 +94,16 @@ class InventoryNotifier extends StateNotifier<InventoryState> {
         nextPageToken: response.nextPageToken,
         filterCategory: category ?? state.filterCategory,
         filterStorageLocation: storageLocationId ?? state.filterStorageLocation,
+        searchQuery: query,
       );
     } catch (e) {
+      if (!mounted || requestVersion != _requestVersion) return;
       state = InventoryState(
         items: state.items,
         nextPageToken: state.nextPageToken,
         filterCategory: state.filterCategory,
         filterStorageLocation: state.filterStorageLocation,
+        searchQuery: query,
         error: e.toString(),
       );
     }
@@ -111,9 +127,15 @@ class InventoryNotifier extends StateNotifier<InventoryState> {
   }
 
   void clearFilters() {
-    state = const InventoryState();
     loadItems(refresh: true);
   }
+
+  Future<void> search(String query) => loadItems(
+        category: state.filterCategory,
+        storageLocationId: state.filterStorageLocation,
+        searchQuery: query.trim(),
+        refresh: true,
+      );
 
   Future<InventoryItem> createItem({
     required String name,

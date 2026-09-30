@@ -164,6 +164,7 @@ class InventoryService:
         category: Optional[str] = None,
         storage_location_id: Optional[uuid.UUID] = None,
         pagination: Optional[PaginationParams] = None,
+        search: Optional[str] = None,
     ) -> tuple[List[InventoryItem], Optional[str]]:
         """List inventory items with optional filters and pagination."""
         stmt = (
@@ -182,8 +183,24 @@ class InventoryService:
         if storage_location_id:
             stmt = stmt.where(InventoryItem.storage_location_id == storage_location_id)
 
+        if search and search.strip():
+            term = normalize_nfc(search.strip())
+            term = term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            pattern = f"%{term}%"
+            stmt = stmt.where(or_(
+                InventoryItem.name_normalized.ilike(pattern, escape="\\"),
+                InventoryItem.category_key.ilike(pattern, escape="\\"),
+                InventoryItem.category.has(or_(
+                    Category.labels["en"].as_string().ilike(pattern, escape="\\"),
+                    Category.labels["ar"].as_string().ilike(pattern, escape="\\"),
+                )),
+                InventoryItem.storage_location.has(
+                    StorageLocation.name.ilike(pattern, escape="\\")
+                ),
+            ))
+
         # Order by created_at DESC, id for stable pagination
-        stmt = stmt.order_by(InventoryItem.created_at.desc(), InventoryItem.id)
+        stmt = stmt.order_by(InventoryItem.created_at.desc(), InventoryItem.id.desc())
 
         if pagination:
             if pagination.cursor:
