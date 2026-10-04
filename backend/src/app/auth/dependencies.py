@@ -3,7 +3,7 @@
 import uuid
 from typing import Optional
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -55,37 +55,34 @@ async def get_current_user(
     return user
 
 
-async def get_current_household_id(
+async def get_current_membership(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> uuid.UUID:
-    """Get current user's household ID."""
-    stmt = select(HouseholdMember).where(HouseholdMember.user_id == current_user.id)
+    household_id: Optional[uuid.UUID] = Header(None, alias="X-Household-ID"),
+) -> HouseholdMember:
+    """Resolve a selected household only through an active membership."""
+    stmt = select(HouseholdMember).where(
+        HouseholdMember.user_id == current_user.id,
+        HouseholdMember.is_active.is_(True),
+    )
+    if household_id is not None:
+        stmt = stmt.where(HouseholdMember.household_id == household_id)
+    stmt = stmt.order_by(HouseholdMember.joined_at, HouseholdMember.id)
     member = await db.scalar(stmt)
-
     if not member:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Household not found",
-        )
+        raise HTTPException(status_code=404, detail="Household membership not found")
+    return member
 
+
+async def get_current_household_id(
+    member: HouseholdMember = Depends(get_current_membership),
+) -> uuid.UUID:
     return member.household_id
 
 
 async def get_current_household_member_id(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    member: HouseholdMember = Depends(get_current_membership),
 ) -> uuid.UUID:
-    """Get current user's household membership ID."""
-    stmt = select(HouseholdMember).where(HouseholdMember.user_id == current_user.id)
-    member = await db.scalar(stmt)
-
-    if not member:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Household membership not found",
-        )
-
     return member.id
 
 

@@ -32,6 +32,12 @@ class ApiClient {
         final token = await _storage.read(key: 'access_token');
         if (token != null) {
           options.headers['Authorization'] = 'Bearer $token';
+          if (!options.path.startsWith('/auth/')) {
+            final householdId = await _storage.read(key: 'household_id');
+            if (householdId != null && householdId.isNotEmpty) {
+              options.headers.putIfAbsent('X-Household-ID', () => householdId);
+            }
+          }
         }
         return handler.next(options);
       },
@@ -114,6 +120,7 @@ class ApiClient {
   Future<String?> getRefreshToken() => _storage.read(key: 'refresh_token');
   Future<String?> getUserId() => _storage.read(key: 'user_id');
   Future<String?> getHouseholdId() => _storage.read(key: 'household_id');
+  Future<void> setHouseholdId(String id) => _storage.write(key: 'household_id', value: id);
 
   String _snakeToCamel(String key) => key.replaceAllMapped(
         RegExp(r'_([a-z])'),

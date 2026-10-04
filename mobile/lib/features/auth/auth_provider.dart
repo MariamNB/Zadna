@@ -80,6 +80,18 @@ class AuthNotifier extends StateNotifier<AuthState> {
     state = const Unauthenticated();
   }
 
+  Future<void> selectHousehold(String id) async {
+    final current = state;
+    if (current is! Authenticated) return;
+    await _repository.selectHousehold(id);
+    if (!mounted) return;
+    state = Authenticated(
+      tokens: current.tokens,
+      userId: current.userId,
+      householdId: id,
+    );
+  }
+
   Future<void> checkAuthStatus() async {
     try {
       final isLoggedIn = await _repository.isLoggedIn();

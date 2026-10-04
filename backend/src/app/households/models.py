@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -60,6 +60,7 @@ class HouseholdMember(Base, UUIDMixin, TimestampMixin):
         default="member",
         nullable=False,
     )
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)
     joined_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -93,3 +94,20 @@ class HouseholdMember(Base, UUIDMixin, TimestampMixin):
     __table_args__ = (
         UniqueConstraint("household_id", "user_id", name="uq_household_member"),
     )
+
+
+class HouseholdInvitation(Base, UUIDMixin, TimestampMixin):
+    """An email-addressed invitation accepted inside the app."""
+
+    __tablename__ = "household_invitations"
+
+    household_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("households.id", ondelete="CASCADE"), index=True,
+    )
+    email: Mapped[str] = mapped_column(String(255), index=True)
+    role: Mapped[str] = mapped_column(String(20), default="member")
+    status: Mapped[str] = mapped_column(String(20), default="pending")
+    invited_by: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("household_members.id"),
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

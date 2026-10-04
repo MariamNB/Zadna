@@ -5,6 +5,7 @@ import 'core/api/api_client.dart';
 import 'data/repositories/auth_repository.dart';
 import 'data/repositories/inventory_repository.dart';
 import 'data/repositories/storage_repository.dart';
+import 'data/repositories/household_repository.dart';
 
 // Import feature providers first (types need to be available for StateNotifierProvider)
 import 'features/auth/auth_provider.dart';
@@ -18,6 +19,16 @@ export 'features/storage/storage_provider.dart';
 export 'data/models/localized_label.dart';
 
 final apiClientProvider = Provider<ApiClient>((ref) => ApiClient());
+final householdRepositoryProvider = Provider<HouseholdRepository>((ref) => HouseholdRepository(ref.read(apiClientProvider)));
+final activeHouseholdProvider = FutureProvider((ref) async {
+  final auth = ref.watch(authNotifierProvider);
+  if (auth is! Authenticated) return null;
+  final households = await ref.read(householdRepositoryProvider).listHouseholds();
+  for (final household in households) {
+    if (household.id == auth.householdId) return household;
+  }
+  return null;
+});
 final authRepositoryProvider = Provider<AuthRepository>((ref) => AuthRepository(ref.read(apiClientProvider)));
 final authNotifierProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) => AuthNotifier(ref.read(authRepositoryProvider)));
 final inventoryRepositoryProvider = Provider<InventoryRepository>((ref) => InventoryRepository(ref.read(apiClientProvider)));

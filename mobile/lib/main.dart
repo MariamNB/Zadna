@@ -7,6 +7,7 @@ import 'presentation/screens/login_screen.dart';
 import 'presentation/screens/register_screen.dart';
 import 'presentation/screens/home_screen.dart';
 import 'presentation/screens/locations_screen.dart';
+import 'presentation/screens/household_screen.dart';
 
 void main() {
   runApp(const ProviderScope(child: ZadnaApp()));
@@ -27,6 +28,7 @@ class ZadnaApp extends ConsumerWidget {
         '/register': (context) => const RegisterScreen(),
         '/home': (context) => const HomeScreen(),
         '/locations': (context) => const LocationsScreen(),
+        '/household': (context) => const HouseholdScreen(),
       },
     );
   }

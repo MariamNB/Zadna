@@ -44,8 +44,10 @@ class StorageNotifier extends StateNotifier<StorageState> {
     state = state.copyWith(isLoading: true, error: null);
     try {
       final locations = await _repository.listLocations();
+      if (!mounted) return;
       state = state.copyWith(topLevel: locations, isLoading: false);
     } catch (e) {
+      if (!mounted) return;
       state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
@@ -64,10 +66,12 @@ class StorageNotifier extends StateNotifier<StorageState> {
     if (!state.children.containsKey(locationId)) {
       try {
         final kids = await _repository.listLocations(parentId: locationId);
+        if (!mounted) return;
         final updated = Map<String, List<StorageLocation>>.from(state.children);
         updated[locationId] = kids;
         state = state.copyWith(children: updated);
       } catch (e) {
+        if (!mounted) return;
         state = state.copyWith(error: e.toString());
       }
     }
@@ -93,6 +97,7 @@ class StorageNotifier extends StateNotifier<StorageState> {
         state = state.copyWith(children: updated);
       }
     } catch (e) {
+      if (!mounted) return;
       state = state.copyWith(error: e.toString());
       rethrow;
     }
@@ -107,6 +112,7 @@ class StorageNotifier extends StateNotifier<StorageState> {
       final updated = await _repository.updateLocation(id: id, name: name);
       _replaceInState(updated, parentId);
     } catch (e) {
+      if (!mounted) return;
       state = state.copyWith(error: e.toString());
       rethrow;
     }

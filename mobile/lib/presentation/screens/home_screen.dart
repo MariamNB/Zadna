@@ -126,7 +126,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('My Kitchen', style: KT.poppins(size: 13, color: KT.kDarkYellow, weight: FontWeight.w500)),
+                Text(ref.watch(activeHouseholdProvider).valueOrNull?.name ?? 'My Kitchen',
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: KT.poppins(size: 13, color: KT.kDarkYellow, weight: FontWeight.w500)),
                 Text('Inventory', style: KT.poppins(size: 22, weight: FontWeight.w800, color: KT.kLightYellow)),
               ],
             ),
@@ -148,9 +150,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 await ref.read(authNotifierProvider.notifier).logout();
               } else if (value == 'locations') {
                 if (mounted) Navigator.of(context).pushNamed('/locations');
+              } else if (value == 'household') {
+                if (mounted) Navigator.of(context).pushNamed('/household');
               }
             },
             itemBuilder: (_) => [
+              const PopupMenuItem(
+                value: 'household',
+                child: Row(children: [
+                  Icon(Icons.people_outline, size: 18),
+                  SizedBox(width: 8),
+                  Text('Household'),
+                ]),
+              ),
               PopupMenuItem(
                 value: 'locations',
                 child: Row(children: [

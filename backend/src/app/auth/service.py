@@ -112,7 +112,10 @@ class AuthService:
         """Create token response for user."""
         # Get user's household
         from app.households.models import HouseholdMember
-        stmt = select(HouseholdMember).where(HouseholdMember.user_id == user.id)
+        stmt = select(HouseholdMember).where(
+            HouseholdMember.user_id == user.id,
+            HouseholdMember.is_active.is_(True),
+        ).order_by(HouseholdMember.joined_at, HouseholdMember.id)
         member = await self.session.scalar(stmt)
 
         if not member:

@@ -17,13 +17,16 @@ class AuthRepository {
     return jsonDecode(decoded) as Map<String, dynamic>;
   }
 
-  Future<void> _storeTokenResponse(TokenResponse tokens) async {
+  Future<void> _storeTokenResponse(TokenResponse tokens, {bool preserveHousehold = false}) async {
     final claims = _jwtPayload(tokens.accessToken);
+    final selectedHousehold = preserveHousehold
+        ? await _apiClient.getHouseholdId()
+        : null;
     await _apiClient.storeTokens(
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken ?? '',
       userId: claims['sub'] as String? ?? '',
-      householdId: claims['household_id'] as String? ?? '',
+      householdId: selectedHousehold ?? claims['household_id'] as String? ?? '',
     );
   }
 
@@ -69,7 +72,7 @@ class AuthRepository {
         data: {'refresh_token': refreshToken},
       );
       final tokens = TokenResponse.fromJson(response.data);
-      await _storeTokenResponse(tokens);
+      await _storeTokenResponse(tokens, preserveHousehold: true);
       return tokens;
     } on DioException catch (e) {
       if (e.response?.statusCode == 401) {
@@ -86,4 +89,9 @@ class AuthRepository {
 
   Future<String?> getCurrentUserId() async => _apiClient.getUserId();
   Future<String?> getCurrentHouseholdId() async => _apiClient.getHouseholdId();
+
+  Future<void> selectHousehold(String id) async {
+    await _apiClient.dio.get('/household', options: Options(headers: {'X-Household-ID': id}));
+    await _apiClient.setHouseholdId(id);
+  }
 }
